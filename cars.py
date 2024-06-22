@@ -26,32 +26,44 @@ GREY = (100,100,100)
 DIRECTIONS = ["left", "right", "up", "down"]
 
 FPS = 60
-VEL = 5
+CAR_VEL_MAX = 5
 CAR_WIDTH, CAR_HEIGHT = 25, 15
 ROAD_WIDTH = 40
 
 
 class Car:
-    def __init__(self, rect: pygame.Rect, x_speed: int, y_speed: int) -> None:
+    def __init__(self, rect: pygame.Rect, speed: int, direction: str) -> None:
         self.mainRect = rect
-        self.x_speed = x_speed
-        self.y_speed = y_speed
-        self.accelerate_count = 0
-        self.decelerate_count = 0
+
+        self.speed = speed
+        self.direction = "right"
+        self.acceleration = 0
         self.next_turn = DIRECTIONS[random.randint(0, 3)]
     
     def update_speed(self):
-        ...
+        self.speed += self.acceleration
+        if self.speed > CAR_VEL_MAX:
+            self.speed = CAR_VEL_MAX
+            self.acceleration = 0
+        if self.speed < 0:
+            self.speed = 0
+            self.acceleration = 0
     
     def update_position(self):
-        self.mainRect.x += self.x_speed
-        self.mainRect.y += self.y_speed
+        if self.direction == "left":
+            self.mainRect.x -= self.speed
+        if self.direction == "right":
+            self.mainRect.x += self.speed
+        if self.direction == "up":
+            self.mainRect.y -= self.speed
+        if self.direction == "left":
+            self.mainRect.y += self.speed
 
-    def starting(self):
-        ...
+    def start(self):
+        self.acceleration = 1
     
-    def stopping(self):
-        ...
+    def stop(self):
+        self.acceleration = -1
 
 
 def draw_window(cars: list[Car], roads: dict):
@@ -94,7 +106,8 @@ def main():
     roads = create_grid(num_of_roads_x, num_of_roads_y)
     cars = []
     # test
-    test_car = Car(pygame.Rect(0, 100, CAR_WIDTH, CAR_HEIGHT), VEL, 0)
+    test_car = Car(pygame.Rect(400, 400, CAR_WIDTH, CAR_HEIGHT), 0, 0)
+    test_car.start()
     cars.append(test_car)
     # test
 
@@ -107,7 +120,7 @@ def main():
                 run = False
         
         # if random.randint(1,40) == 1:
-        #     new_car = Car(pygame.Rect(0, 100, CAR_WIDTH, CAR_HEIGHT), VEL, 0)
+        #     new_car = Car(pygame.Rect(0, 100, CAR_WIDTH, CAR_HEIGHT), CAR_VEL_MAX, 0)
         #     cars.append(new_car)
 
 
