@@ -35,8 +35,8 @@ ROAD_WIDTH = 40
 
 # ------------------------------ FUNCTIONS / CLASSES ------------------------------
 class Car:
-    def __init__(self, rect: pygame.Rect, speed: float, direction: str) -> None:
-        self.mainRect = rect
+    def __init__(self, posX: int, posY: int, speed: float, direction: str) -> None:
+        self.mainRect = pygame.Rect(posX, posY, CAR_WIDTH, CAR_HEIGHT)
         self.speed = speed
         self.direction = direction
         self.acceleration = 0
@@ -60,6 +60,28 @@ class Car:
             self.mainRect.y -= round(self.speed)
         if self.direction == "down":
             self.mainRect.y += round(self.speed)
+
+    def colides_with_car(self, cars: list):
+        # sposób 1
+        # if self.mainRect.collideobjects(cars, key=lambda o: o.mainRect):
+        #     return True
+        # return False
+
+        # sposób 2
+        for car in cars:
+            if self == car:
+                continue
+            if self.mainRect.colliderect(car.mainRect):
+                return True
+        return False
+    
+    def off_screen(sefl):
+        print(f"x: {sefl.mainRect.x}")
+        if sefl.mainRect.x < 0 - CAR_WIDTH or sefl.mainRect.x > WIDTH:
+            return True
+        if sefl.mainRect.y < 0 - CAR_HEIGHT or sefl.mainRect.y > HEIGHT:
+            return True
+        return False
 
     def start(self):
         self.acceleration = CAR_ACC
@@ -110,6 +132,11 @@ def cars_movement(cars: list[Car]):
     for car in cars:
         car.update_speed()
         car.update_position()
+        if car.off_screen():
+            cars.remove(car)
+            print("off screen")
+        if car.colides_with_car(cars):
+            car.stop()
 
 
 def create_grid(num_of_vertical: int, num_of_horizontal: int):
@@ -145,29 +172,53 @@ def main():
     cars = []
     
     # test
-    test_car = Car(pygame.Rect(0, 0, CAR_WIDTH, CAR_HEIGHT), 0, DIRECTIONS[0])
+    test_car = Car(266, 266, 0, DIRECTIONS[0])
     # test_car.start()
     cars.append(test_car)
     # test
 
     clock = pygame.time.Clock()
     run = True
+    spawn = 0
     while run:
         clock.tick(FPS)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
         
-        if random.randint(1,4) == 1:
-            spawnPos = getSpawnPos(roads)
-            (x,y) = calculateCornerCord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
-            new_car = Car(pygame.Rect(x, y, CAR_WIDTH, CAR_HEIGHT), 0, spawnPos[0])
-            new_car.start()
-            cars.append(new_car)
+        # if random.randint(1,4) == 1:
+        #     spawnPos = getSpawnPos(roads)
+        #     (x,y) = calculateCornerCord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
+        #     new_car = Car(x, y, 0, spawnPos[0])
+        #     if new_car.colides_with_car(cars):
+        #         pass
+        #     else:
+        #         new_car.start()
+        #         cars.append(new_car)
+
+        # test
+        if spawn == 0:
+            if random.randint(1,4) == 1 or True:
+                spawnPos = roads[2].spawnPosDir1
+                (x,y) = calculateCornerCord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
+                new_car = Car(x, y, 0, spawnPos[0])
+                if new_car.colides_with_car(cars):
+                    new_car = None
+                else:
+                    new_car.start()
+                    cars.append(new_car)
+        # spawn += 1
+        # test
 
 
+        # test
+        print(f"len(cars): {len(cars)}")
+        # test
         cars_movement(cars)
-        
+        # test
+        print(f"len(cars): {len(cars)}")
+        # test
+
         draw_window(cars, roads)
     
     pygame.quit()
