@@ -1,11 +1,12 @@
 import pygame
 import os
 import random
+import threading
 
 
 # ------------------------------ SETTINGS ------------------------------
-num_of_roads_x = 2
-num_of_roads_y = 2
+num_of_roads_x = 4
+num_of_roads_y = 4
 
 
 
@@ -24,16 +25,20 @@ DIRECTIONS = ["left", "right", "up", "down"]
 WHITE = (255,255,255)
 RED = (255,0,0)
 GREEN = (0,255,0)
+BLUE = (0,0,255)
 GREY = (100,100,100)
 FPS = 60
+CHANGE_LIGHTS_EVENT = pygame.USEREVENT + 1
 
 # object properties
 CAR_VEL_MAX = 5
 CAR_ACC = 0.55 # 0.05
 CAR_WIDTH, CAR_HEIGHT = 15, 15
+CAR_COLOR = (48,213,200)
 COLIDE_DETECT_LENGTH = 3 * CAR_WIDTH
 ROAD_WIDTH = 40
-INTERSECTION_WIDTH = 60
+INTERSECTION_WIDTH = 70
+LIGHT_WIDTH = 10
 
 
 # ------------------------------ FUNCTIONS / CLASSES ------------------------------
@@ -99,16 +104,16 @@ class Car:
             self.activeColideRect = self.colideRectDown
 
     def collides_with_car(self, cars: list):
-        # sposób 1
-        # if self.drawRect.collideobjects(cars, key=lambda o: o.drawRect):
-        #     return True
-        # return False
-
-        # sposób 2
         for car in cars:
             if self == car:
                 continue
             if self.activeColideRect.colliderect(car.drawRect):
+                return True
+        return False
+    
+    def red_light_ahead(self, intersections: list):
+        for intersection in intersections:
+            if self.activeColideRect.colliderect(intersection.collisionRect) and intersection.lights[self.direction]["color"] == RED:
                 return True
         return False
     
@@ -146,6 +151,78 @@ class Road:
         return output
 
 
+class Intersection:
+    phases = [
+        {
+            "left": {"color": GREEN},
+            "right": {"color": RED},
+            "up": {"color": RED},
+            "down": {"color": RED}
+        },
+        {
+            "left": {"color": RED},
+            "right": {"color": RED},
+            "up": {"color": GREEN},
+            "down": {"color": RED}
+        },
+        {
+            "left": {"color": RED},
+            "right": {"color": GREEN},
+            "up": {"color": RED},
+            "down": {"color": RED}
+        },
+        {
+            "left": {"color": RED},
+            "right": {"color": RED},
+            "up": {"color": RED},
+            "down": {"color": GREEN}
+        },
+    ]
+    
+    def __init__(self, posX: int, posY: int) -> None:
+        self.collisionRect = pygame.Rect(posX, posY, INTERSECTION_WIDTH, INTERSECTION_WIDTH)
+        # lights define light TO direction i.e. lights["left"] mean light for cars moving from right to left
+        self.timer = threading.Timer
+        self.currentPhase = 0
+        self.lights = {
+            "left": {
+                "color": GREEN,
+                "rect": pygame.Rect(posX + INTERSECTION_WIDTH + 0.5 * LIGHT_WIDTH, posY, LIGHT_WIDTH, LIGHT_WIDTH),
+            },
+            "right": {
+                "color": RED,
+                "rect": pygame.Rect(posX - 1.5 * LIGHT_WIDTH, posY + INTERSECTION_WIDTH - LIGHT_WIDTH, LIGHT_WIDTH, LIGHT_WIDTH),
+            },
+            "up": {
+                "color": RED,
+                "rect": pygame.Rect(posX + INTERSECTION_WIDTH - LIGHT_WIDTH, posY + INTERSECTION_WIDTH + 0.5 * LIGHT_WIDTH, LIGHT_WIDTH, LIGHT_WIDTH),
+            },
+            "down": {
+                "color": RED,
+                "rect": pygame.Rect(posX, posY - 1.5 * LIGHT_WIDTH, LIGHT_WIDTH, LIGHT_WIDTH),
+            }
+        }
+    
+    def updatePhase(self):
+        self.currentPhase = (self.currentPhase + 1) % 4
+        updateDict(self.lights, self.phases[self.currentPhase])
+        
+
+
+def updateDict(original, delta):
+    originalUpdated = original
+    # update each parameter separately instead of updated = original.upadte(delta) so it doesn't delete parameters that are not being updated
+    for parameter in delta:
+        if parameter in originalUpdated:
+            if type(delta[parameter]) is dict:
+                originalUpdated.update({parameter: updateDict(original[parameter], delta[parameter])})
+            else:
+                originalUpdated.update({parameter: delta[parameter]})
+        else:
+            originalUpdated.update({parameter: delta[parameter]})
+    return originalUpdated
+
+
 # calculates where to put obcjet so the middle ponit of the object was in xCordMid and yCordMid
 def calculateCornerCord(xCordMid: int, yCordMid: int, objWidth: int, objHeight: int):
     xCordCorner = xCordMid - 0.5 * objWidth
@@ -153,11 +230,11 @@ def calculateCornerCord(xCordMid: int, yCordMid: int, objWidth: int, objHeight: 
     return (xCordCorner, yCordCorner)
 
 
-def draw_window(cars: list[Car], roads: dict):
+def draw_window(cars: list[Car], roads: list[Road], intersections: list[Intersection]):
     WIN.fill(WHITE)
-    draw_gird(roads)
+    draw_gird(roads, intersections)
     for car in cars:
-        pygame.draw.rect(WIN, RED, car.drawRect)
+        pygame.draw.rect(WIN, CAR_COLOR, car.drawRect)
         # test
         # pygame.draw.rect(WIN, GREEN, car.colideRectLeft)
         # pygame.draw.rect(WIN, GREEN, car.colideRectRight)
@@ -168,7 +245,7 @@ def draw_window(cars: list[Car], roads: dict):
     pygame.display.update()
     
 
-def cars_movement(cars: list[Car]):
+def cars_movement(cars: list[Car], intersections: list[Intersection]):
     for car in cars:
         car.update_speed()
         car.update_position()
@@ -176,24 +253,47 @@ def cars_movement(cars: list[Car]):
             cars.remove(car)
         if car.collides_with_car(cars):
             car.stop()
+        elif car.red_light_ahead(intersections):
+            car.stop()
+        else:
+            car.start()
 
 
 def create_grid(num_of_vertical: int, num_of_horizontal: int):
     roads = []
     intersections = []
+    # create roads
     for i in range(num_of_vertical):
         roads.append(Road("vertical", WIDTH * (i+1)/(num_of_vertical+1)))
     for i in range(num_of_horizontal):
         roads.append(Road("horizontal", HEIGHT * (i+1)/(num_of_horizontal+1)))
-    return roads
+    # create intersections
+    vertical = []
+    horizontal = []
+    for road in roads:
+        if road.orientation == "vertical":
+            vertical.append(road.mid)
+        if road.orientation == "horizontal":
+            horizontal.append(road.mid)
+    for x in vertical:
+        for y in horizontal:
+            (xPrim, yPrim) = calculateCornerCord(x, y, INTERSECTION_WIDTH, INTERSECTION_WIDTH)
+            intersections.append(Intersection(xPrim, yPrim))
+    return roads, intersections
 
 
-def draw_gird(roads: list[Road]):
+def draw_gird(roads: list[Road], intersections: list[Intersection]):
     for road in roads:
         if road.orientation == "vertical":
             pygame.draw.line(WIN, GREY, (road.mid, 0), (road.mid, HEIGHT), ROAD_WIDTH)
         if road.orientation == "horizontal":
             pygame.draw.line(WIN, GREY, (0, road.mid), (WIDTH, road.mid), ROAD_WIDTH)
+    for intersection in intersections:
+        # pygame.draw.rect(WIN, BLUE, intersection.collisionRect)
+        pygame.draw.rect(WIN, intersection.lights["left"]["color"], intersection.lights["left"]["rect"])
+        pygame.draw.rect(WIN, intersection.lights["right"]["color"], intersection.lights["right"]["rect"])
+        pygame.draw.rect(WIN, intersection.lights["up"]["color"], intersection.lights["up"]["rect"])
+        pygame.draw.rect(WIN, intersection.lights["down"]["color"], intersection.lights["down"]["rect"])
 
 
 # returns spawn positon and direction to be headed
@@ -208,15 +308,16 @@ def getSpawnPos(roads: list[Road]):
 
 # ------------------------------ MAIN ------------------------------
 def main():
-    roads = create_grid(num_of_roads_x, num_of_roads_y)
+    roads, intersections = create_grid(num_of_roads_x, num_of_roads_y)
     cars = []
     
     # test
-    test_car = Car(266, 266, 0, DIRECTIONS[0])
+    # test_car = Car(266, 266, 0, DIRECTIONS[0])
     # test_car.start()
-    cars.append(test_car)
+    # cars.append(test_car)
     # test
 
+    pygame.time.set_timer(CHANGE_LIGHTS_EVENT, 1000)
     clock = pygame.time.Clock()
     run = True
     spawn = 0
@@ -225,6 +326,9 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
+            if event.type == CHANGE_LIGHTS_EVENT:
+                for intersection in intersections:
+                    intersection.updatePhase()
         
         if random.randint(1,4) == 1:
             spawnPos = getSpawnPos(roads)
@@ -251,12 +355,14 @@ def main():
         # test
 
 
-        cars_movement(cars)
+        # update_intersections()
+
+        cars_movement(cars, intersections)
         # test
         print(f"len(cars): {len(cars)}")
         # test
 
-        draw_window(cars, roads)
+        draw_window(cars, roads, intersections)
     
     pygame.quit()
 
