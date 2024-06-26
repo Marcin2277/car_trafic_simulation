@@ -5,8 +5,8 @@ import threading
 
 
 # ------------------------------ SETTINGS ------------------------------
-num_of_roads_x = 4
-num_of_roads_y = 4
+num_of_roads_x = 3
+num_of_roads_y = 3
 
 
 
@@ -37,6 +37,8 @@ CAR_WIDTH, CAR_HEIGHT = 15, 15
 CAR_COLOR = (48,213,200)
 COLIDE_DETECT_LENGTH = 3 * CAR_WIDTH
 ROAD_WIDTH = 40
+INTERSECTION_STOP_BUFOR = 5
+INTERSECTION_LIGHT_BUFOR = 15
 INTERSECTION_WIDTH = 70
 LIGHT_WIDTH = 10
 
@@ -113,8 +115,11 @@ class Car:
     
     def red_light_ahead(self, intersections: list):
         for intersection in intersections:
-            if self.activeColideRect.colliderect(intersection.collisionRect) and intersection.lights[self.direction]["color"] == RED:
-                return True
+            for stopPoint in intersection.stopPoints:
+                if self.activeColideRect.collidepoint(stopPoint) and intersection.lights[self.direction]["color"] == RED:
+                    return True
+            # if self.activeColideRect.colliderect(intersection.collisionRect) and intersection.lights[self.direction]["color"] == RED:
+            #     return True
         return False
     
     def off_screen(sefl):
@@ -179,27 +184,34 @@ class Intersection:
         },
     ]
     
-    def __init__(self, posX: int, posY: int) -> None:
-        self.collisionRect = pygame.Rect(posX, posY, INTERSECTION_WIDTH, INTERSECTION_WIDTH)
-        # lights define light TO direction i.e. lights["left"] mean light for cars moving from right to left
+    def __init__(self, midX: int, midY: int) -> None:
+        # if car colides stopPoint it stops (but after exiting stopPoint it continues ride (must exit intersection))
+        self.stopPoints = [
+            (midX - 0.25 * ROAD_WIDTH, midY - ROAD_WIDTH/2 - INTERSECTION_STOP_BUFOR),
+            (midX + ROAD_WIDTH/2 + INTERSECTION_STOP_BUFOR, midY - 0.25 * ROAD_WIDTH),
+            (midX + 0.25 * ROAD_WIDTH, midY + ROAD_WIDTH/2 + INTERSECTION_STOP_BUFOR),
+            (midX - ROAD_WIDTH/2 - INTERSECTION_STOP_BUFOR, midY + 0.25 * ROAD_WIDTH)
+        ]
+        
+        # lights direction defines fight for cars heading that directioni.e. lights["left"] mean light for cars moving from right to left
         self.timer = threading.Timer
         self.currentPhase = 0
         self.lights = {
+            "down": {
+                "color": RED,
+                "rect": pygame.Rect(midX - LIGHT_WIDTH - ROAD_WIDTH/2 - 3, midY - ROAD_WIDTH/2 - LIGHT_WIDTH - INTERSECTION_LIGHT_BUFOR, LIGHT_WIDTH, LIGHT_WIDTH),
+            },
             "left": {
                 "color": GREEN,
-                "rect": pygame.Rect(posX + INTERSECTION_WIDTH + 0.5 * LIGHT_WIDTH, posY, LIGHT_WIDTH, LIGHT_WIDTH),
-            },
-            "right": {
-                "color": RED,
-                "rect": pygame.Rect(posX - 1.5 * LIGHT_WIDTH, posY + INTERSECTION_WIDTH - LIGHT_WIDTH, LIGHT_WIDTH, LIGHT_WIDTH),
+                "rect": pygame.Rect(midX + ROAD_WIDTH/2 + INTERSECTION_LIGHT_BUFOR, midY - LIGHT_WIDTH - ROAD_WIDTH/2 - 3, LIGHT_WIDTH, LIGHT_WIDTH),
             },
             "up": {
                 "color": RED,
-                "rect": pygame.Rect(posX + INTERSECTION_WIDTH - LIGHT_WIDTH, posY + INTERSECTION_WIDTH + 0.5 * LIGHT_WIDTH, LIGHT_WIDTH, LIGHT_WIDTH),
+                "rect": pygame.Rect(midX + ROAD_WIDTH/2 + 3, midY + ROAD_WIDTH/2 + INTERSECTION_LIGHT_BUFOR, LIGHT_WIDTH, LIGHT_WIDTH),
             },
-            "down": {
+            "right": {
                 "color": RED,
-                "rect": pygame.Rect(posX, posY - 1.5 * LIGHT_WIDTH, LIGHT_WIDTH, LIGHT_WIDTH),
+                "rect": pygame.Rect(midX - LIGHT_WIDTH - ROAD_WIDTH/2 - INTERSECTION_LIGHT_BUFOR, midY + ROAD_WIDTH/2 + 3, LIGHT_WIDTH, LIGHT_WIDTH),
             }
         }
     
@@ -232,15 +244,23 @@ def calculateCornerCord(xCordMid: int, yCordMid: int, objWidth: int, objHeight: 
 
 def draw_window(cars: list[Car], roads: list[Road], intersections: list[Intersection]):
     WIN.fill(WHITE)
+    # draw grid
     draw_gird(roads, intersections)
+    
+    # draw cars
+    # test
+    # for car in cars:
+    #     pygame.draw.rect(WIN, GREEN, car.activeColideRect)
+    # test
     for car in cars:
-        pygame.draw.rect(WIN, CAR_COLOR, car.drawRect)
         # test
+        # pygame.draw.rect(WIN, GREEN, car.activeColideRect)
         # pygame.draw.rect(WIN, GREEN, car.colideRectLeft)
         # pygame.draw.rect(WIN, GREEN, car.colideRectRight)
         # pygame.draw.rect(WIN, GREEN, car.colideRectUp)
         # pygame.draw.rect(WIN, GREEN, car.colideRectDown)
         # test
+        pygame.draw.rect(WIN, CAR_COLOR, car.drawRect)
 
     pygame.display.update()
     
@@ -277,8 +297,7 @@ def create_grid(num_of_vertical: int, num_of_horizontal: int):
             horizontal.append(road.mid)
     for x in vertical:
         for y in horizontal:
-            (xPrim, yPrim) = calculateCornerCord(x, y, INTERSECTION_WIDTH, INTERSECTION_WIDTH)
-            intersections.append(Intersection(xPrim, yPrim))
+            intersections.append(Intersection(x, y))
     return roads, intersections
 
 
@@ -289,7 +308,10 @@ def draw_gird(roads: list[Road], intersections: list[Intersection]):
         if road.orientation == "horizontal":
             pygame.draw.line(WIN, GREY, (0, road.mid), (WIDTH, road.mid), ROAD_WIDTH)
     for intersection in intersections:
-        # pygame.draw.rect(WIN, BLUE, intersection.collisionRect)
+        # test
+        for stopPoint in intersection.stopPoints:
+            pygame.draw.circle(WIN, BLUE, stopPoint, 3)
+        # test
         pygame.draw.rect(WIN, intersection.lights["left"]["color"], intersection.lights["left"]["rect"])
         pygame.draw.rect(WIN, intersection.lights["right"]["color"], intersection.lights["right"]["rect"])
         pygame.draw.rect(WIN, intersection.lights["up"]["color"], intersection.lights["up"]["rect"])
@@ -369,3 +391,12 @@ def main():
 
 if __name__=="__main__":
     main()
+    
+    
+
+
+# Notatki:
+# - wpływ światła żółtego (zakładając idealne zachowanie kierowców) vs bez żółtego
+# - badanie czasu postoju auta w zależności od czasu trwania sygnalizacji
+# - ustalony kierunek wszystkich aut vs losowe skręty
+# - na przyszłość ustalanie miejsc docelowych dla każdego auta
