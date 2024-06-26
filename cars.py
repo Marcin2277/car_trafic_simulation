@@ -8,23 +8,12 @@ import threading
 num_of_roads_x = 3
 num_of_roads_y = 3
 
-
-
-
-
-
-
-
-# ------------------------------ SETUP ------------------------------
-WIDTH, HEIGHT = 800, 800
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Car Traffic Simulation")
-
 # general
 DIRECTIONS = ["left", "right", "up", "down"]
 WHITE = (255,255,255)
 RED = (255,0,0)
 GREEN = (0,255,0)
+YELLOW = (255,255,0)
 BLUE = (0,0,255)
 GREY = (100,100,100)
 FPS = 60
@@ -37,13 +26,146 @@ CAR_WIDTH, CAR_HEIGHT = 15, 15
 CAR_COLOR = (48,213,200)
 COLIDE_DETECT_LENGTH = 3 * CAR_WIDTH
 ROAD_WIDTH = 40
-INTERSECTION_STOP_BUFOR = 5
+INTERSECTION_STOP_BUFOR = CAR_WIDTH
 INTERSECTION_LIGHT_BUFOR = 15
 INTERSECTION_WIDTH = 70
 LIGHT_WIDTH = 10
+YELLOW_DURATION = 500
+GREEN_DURATION = 1000
 
 
-# ------------------------------ FUNCTIONS / CLASSES ------------------------------
+cycle1 = [
+    {
+        "duration": GREEN_DURATION,
+        "left": {"color": GREEN},
+        "right": {"color": RED},
+        "up": {"color": RED},
+        "down": {"color": RED}
+    },
+    {
+        "duration": GREEN_DURATION,
+        "left": {"color": RED},
+        "right": {"color": RED},
+        "up": {"color": GREEN},
+        "down": {"color": RED}
+    },
+    {
+        "duration": GREEN_DURATION,
+        "left": {"color": RED},
+        "right": {"color": GREEN},
+        "up": {"color": RED},
+        "down": {"color": RED}
+    },
+    {
+        "duration": GREEN_DURATION,
+        "left": {"color": RED},
+        "right": {"color": RED},
+        "up": {"color": RED},
+        "down": {"color": GREEN}
+    },
+]
+
+
+cycle2 = [
+    {
+        "duration": YELLOW_DURATION,
+        "left": {"color": YELLOW},
+        "right": {"color": RED},
+        "up": {"color": RED},
+        "down": {"color": RED}
+    },
+    {
+        "duration": GREEN_DURATION,
+        "left": {"color": GREEN},
+        "right": {"color": RED},
+        "up": {"color": RED},
+        "down": {"color": RED}
+    },
+    {
+        "duration": YELLOW_DURATION,
+        "left": {"color": YELLOW},
+        "right": {"color": RED},
+        "up": {"color": RED},
+        "down": {"color": RED}
+    },
+    {
+        "duration": YELLOW_DURATION,
+        "left": {"color": RED},
+        "right": {"color": RED},
+        "up": {"color": YELLOW},
+        "down": {"color": RED}
+    },
+    {
+        "duration": GREEN_DURATION,
+        "left": {"color": RED},
+        "right": {"color": RED},
+        "up": {"color": GREEN},
+        "down": {"color": RED}
+    },
+    {
+        "duration": YELLOW_DURATION,
+        "left": {"color": RED},
+        "right": {"color": RED},
+        "up": {"color": YELLOW},
+        "down": {"color": RED}
+    },
+    {
+        "duration": YELLOW_DURATION,
+        "left": {"color": RED},
+        "right": {"color": YELLOW},
+        "up": {"color": RED},
+        "down": {"color": RED}
+    },
+    {
+        "duration": GREEN_DURATION,
+        "left": {"color": RED},
+        "right": {"color": GREEN},
+        "up": {"color": RED},
+        "down": {"color": RED}
+    },
+    {
+        "duration": YELLOW_DURATION,
+        "left": {"color": RED},
+        "right": {"color": YELLOW},
+        "up": {"color": RED},
+        "down": {"color": RED}
+    },
+    {
+        "duration": YELLOW_DURATION,
+        "left": {"color": RED},
+        "right": {"color": RED},
+        "up": {"color": RED},
+        "down": {"color": YELLOW}
+    },
+    {
+        "duration": GREEN_DURATION,
+        "left": {"color": RED},
+        "right": {"color": RED},
+        "up": {"color": RED},
+        "down": {"color": GREEN}
+    },
+    {
+        "duration": YELLOW_DURATION,
+        "left": {"color": RED},
+        "right": {"color": RED},
+        "up": {"color": RED},
+        "down": {"color": YELLOW}
+    },
+]
+
+
+
+
+
+# ------------------------------ SETUP ------------------------------
+WIDTH, HEIGHT = 800, 800
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Car Traffic Simulation")
+
+
+
+
+# ------------------------------ CLASSES ------------------------------
 class Car:
     def __init__(self, posX: int, posY: int, speed: float, direction: str) -> None:
         self.drawRect = pygame.Rect(posX, posY, CAR_WIDTH, CAR_HEIGHT)
@@ -157,34 +279,7 @@ class Road:
 
 
 class Intersection:
-    phases = [
-        {
-            "left": {"color": GREEN},
-            "right": {"color": RED},
-            "up": {"color": RED},
-            "down": {"color": RED}
-        },
-        {
-            "left": {"color": RED},
-            "right": {"color": RED},
-            "up": {"color": GREEN},
-            "down": {"color": RED}
-        },
-        {
-            "left": {"color": RED},
-            "right": {"color": GREEN},
-            "up": {"color": RED},
-            "down": {"color": RED}
-        },
-        {
-            "left": {"color": RED},
-            "right": {"color": RED},
-            "up": {"color": RED},
-            "down": {"color": GREEN}
-        },
-    ]
-    
-    def __init__(self, midX: int, midY: int) -> None:
+    def __init__(self, midX: int, midY: int, cycle: list) -> None:
         # if car colides stopPoint it stops (but after exiting stopPoint it continues ride (must exit intersection))
         self.stopPoints = [
             (midX - 0.25 * ROAD_WIDTH, midY - ROAD_WIDTH/2 - INTERSECTION_STOP_BUFOR),
@@ -195,6 +290,7 @@ class Intersection:
         
         # lights direction defines fight for cars heading that directioni.e. lights["left"] mean light for cars moving from right to left
         self.timer = threading.Timer
+        self.cycle = cycle
         self.currentPhase = 0
         self.lights = {
             "down": {
@@ -216,11 +312,12 @@ class Intersection:
         }
     
     def updatePhase(self):
-        self.currentPhase = (self.currentPhase + 1) % 4
-        updateDict(self.lights, self.phases[self.currentPhase])
+        pygame.time.set_timer(CHANGE_LIGHTS_EVENT, self.cycle[self.currentPhase]["duration"])
+        self.currentPhase = (self.currentPhase + 1) % len(self.cycle)
+        updateDict(self.lights, self.cycle[self.currentPhase])
         
 
-
+# ------------------------------ FUNCTIONS ------------------------------
 def updateDict(original, delta):
     originalUpdated = original
     # update each parameter separately instead of updated = original.upadte(delta) so it doesn't delete parameters that are not being updated
@@ -297,7 +394,7 @@ def create_grid(num_of_vertical: int, num_of_horizontal: int):
             horizontal.append(road.mid)
     for x in vertical:
         for y in horizontal:
-            intersections.append(Intersection(x, y))
+            intersections.append(Intersection(x, y, cycle1))
     return roads, intersections
 
 
@@ -348,6 +445,9 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
+            # if event.type == pygame.KEYDOWN:
+            #     print("Changed interval")
+            #     pygame.time.set_timer(CHANGE_LIGHTS_EVENT, 500)
             if event.type == CHANGE_LIGHTS_EVENT:
                 for intersection in intersections:
                     intersection.updatePhase()
@@ -395,8 +495,12 @@ if __name__=="__main__":
     
 
 
-# Notatki:
+# Notatki symulacyjne:
 # - wpływ światła żółtego (zakładając idealne zachowanie kierowców) vs bez żółtego
 # - badanie czasu postoju auta w zależności od czasu trwania sygnalizacji
 # - ustalony kierunek wszystkich aut vs losowe skręty
+# - badanie wpływu przyśpieszenia i vmax aut
 # - na przyszłość ustalanie miejsc docelowych dla każdego auta
+
+# Notatki implementacyjne:
+# - dóży wpływ ma punkt rozpoczęcia hamowania przed skrzyżowaniem (zbyt blisko skrzyżowania oznacza zatrzymanie się na skrzyżowaniu)
