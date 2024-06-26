@@ -23,24 +23,43 @@ pygame.display.set_caption("Car Traffic Simulation")
 DIRECTIONS = ["left", "right", "up", "down"]
 WHITE = (255,255,255)
 RED = (255,0,0)
+GREEN = (0,255,0)
 GREY = (100,100,100)
 FPS = 60
 
 # object properties
 CAR_VEL_MAX = 5
-CAR_ACC = 0.05
+CAR_ACC = 0.55 # 0.05
 CAR_WIDTH, CAR_HEIGHT = 15, 15
+COLIDE_DETECT_LENGTH = 3 * CAR_WIDTH
 ROAD_WIDTH = 40
+INTERSECTION_WIDTH = 60
 
 
 # ------------------------------ FUNCTIONS / CLASSES ------------------------------
 class Car:
     def __init__(self, posX: int, posY: int, speed: float, direction: str) -> None:
-        self.mainRect = pygame.Rect(posX, posY, CAR_WIDTH, CAR_HEIGHT)
+        self.drawRect = pygame.Rect(posX, posY, CAR_WIDTH, CAR_HEIGHT)
+        self.colideRectLeft = pygame.Rect(posX - COLIDE_DETECT_LENGTH + CAR_WIDTH, posY, COLIDE_DETECT_LENGTH, CAR_HEIGHT)
+        self.colideRectRight = pygame.Rect(posX, posY, COLIDE_DETECT_LENGTH, CAR_HEIGHT)
+        self.colideRectUp = pygame.Rect(posX, posY - COLIDE_DETECT_LENGTH + CAR_HEIGHT, CAR_WIDTH, COLIDE_DETECT_LENGTH)
+        self.colideRectDown = pygame.Rect(posX, posY, CAR_WIDTH, COLIDE_DETECT_LENGTH)
+        self.activeColideRect = None
         self.speed = speed
         self.direction = direction
         self.acceleration = 0
         self.next_turn = DIRECTIONS[random.randint(0, 3)]
+        self.update_position()
+    
+    def __str__(self) -> str:
+        output = f"direction: {self.direction}\n"
+        output += f"activeColideRect.x: {self.activeColideRect.x}\n"
+        output += f"activeColideRect.y: {self.activeColideRect.y}\n"
+        output += f"drawRect.x: {self.drawRect.x}\n"
+        output += f"drawRect.y: {self.drawRect.y}\n"
+        output += f"speed: {self.speed}\n"
+        output += f"acceleration: {self.acceleration}\n"
+        return output
     
     def update_speed(self):
         self.speed += self.acceleration
@@ -51,19 +70,37 @@ class Car:
             self.speed = 0
             self.acceleration = 0
     
+    def update_colide_area(self):
+        self.colideRectLeft.x = self.drawRect.x - COLIDE_DETECT_LENGTH + CAR_WIDTH
+        self.colideRectLeft.y = self.drawRect.y
+        self.colideRectRight.x = self.drawRect.x
+        self.colideRectRight.y = self.drawRect.y
+        self.colideRectUp.x = self.drawRect.x
+        self.colideRectUp.y = self.drawRect.y - COLIDE_DETECT_LENGTH + CAR_HEIGHT
+        self.colideRectDown.x = self.drawRect.x
+        self.colideRectDown.y = self.drawRect.y
+    
     def update_position(self):
         if self.direction == "left":
-            self.mainRect.x -= round(self.speed)
+            self.drawRect.x -= round(self.speed)
+            self.update_colide_area()
+            self.activeColideRect = self.colideRectLeft
         if self.direction == "right":
-            self.mainRect.x += round(self.speed)
+            self.drawRect.x += round(self.speed)
+            self.update_colide_area()
+            self.activeColideRect = self.colideRectRight
         if self.direction == "up":
-            self.mainRect.y -= round(self.speed)
+            self.drawRect.y -= round(self.speed)
+            self.update_colide_area()
+            self.activeColideRect = self.colideRectUp
         if self.direction == "down":
-            self.mainRect.y += round(self.speed)
+            self.drawRect.y += round(self.speed)
+            self.update_colide_area()
+            self.activeColideRect = self.colideRectDown
 
-    def colides_with_car(self, cars: list):
+    def collides_with_car(self, cars: list):
         # sposób 1
-        # if self.mainRect.collideobjects(cars, key=lambda o: o.mainRect):
+        # if self.drawRect.collideobjects(cars, key=lambda o: o.drawRect):
         #     return True
         # return False
 
@@ -71,15 +108,14 @@ class Car:
         for car in cars:
             if self == car:
                 continue
-            if self.mainRect.colliderect(car.mainRect):
+            if self.activeColideRect.colliderect(car.drawRect):
                 return True
         return False
     
     def off_screen(sefl):
-        print(f"x: {sefl.mainRect.x}")
-        if sefl.mainRect.x < 0 - CAR_WIDTH or sefl.mainRect.x > WIDTH:
+        if sefl.drawRect.x < 0 - CAR_WIDTH or sefl.drawRect.x > WIDTH:
             return True
-        if sefl.mainRect.y < 0 - CAR_HEIGHT or sefl.mainRect.y > HEIGHT:
+        if sefl.drawRect.y < 0 - CAR_HEIGHT or sefl.drawRect.y > HEIGHT:
             return True
         return False
 
@@ -119,11 +155,15 @@ def calculateCornerCord(xCordMid: int, yCordMid: int, objWidth: int, objHeight: 
 
 def draw_window(cars: list[Car], roads: dict):
     WIN.fill(WHITE)
-
     draw_gird(roads)
-
     for car in cars:
-        pygame.draw.rect(WIN, RED, car.mainRect)
+        pygame.draw.rect(WIN, RED, car.drawRect)
+        # test
+        # pygame.draw.rect(WIN, GREEN, car.colideRectLeft)
+        # pygame.draw.rect(WIN, GREEN, car.colideRectRight)
+        # pygame.draw.rect(WIN, GREEN, car.colideRectUp)
+        # pygame.draw.rect(WIN, GREEN, car.colideRectDown)
+        # test
 
     pygame.display.update()
     
@@ -134,13 +174,13 @@ def cars_movement(cars: list[Car]):
         car.update_position()
         if car.off_screen():
             cars.remove(car)
-            print("off screen")
-        if car.colides_with_car(cars):
+        if car.collides_with_car(cars):
             car.stop()
 
 
 def create_grid(num_of_vertical: int, num_of_horizontal: int):
     roads = []
+    intersections = []
     for i in range(num_of_vertical):
         roads.append(Road("vertical", WIDTH * (i+1)/(num_of_vertical+1)))
     for i in range(num_of_horizontal):
@@ -186,34 +226,31 @@ def main():
             if event.type == pygame.QUIT:
                 run = False
         
-        # if random.randint(1,4) == 1:
-        #     spawnPos = getSpawnPos(roads)
-        #     (x,y) = calculateCornerCord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
-        #     new_car = Car(x, y, 0, spawnPos[0])
-        #     if new_car.colides_with_car(cars):
-        #         pass
-        #     else:
-        #         new_car.start()
-        #         cars.append(new_car)
+        if random.randint(1,4) == 1:
+            spawnPos = getSpawnPos(roads)
+            (x,y) = calculateCornerCord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
+            new_car = Car(x, y, 0, spawnPos[0])
+            if new_car.collides_with_car(cars):
+                new_car = None
+            else:
+                new_car.start()
+                cars.append(new_car)
 
         # test
-        if spawn == 0:
-            if random.randint(1,4) == 1 or True:
-                spawnPos = roads[2].spawnPosDir1
-                (x,y) = calculateCornerCord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
-                new_car = Car(x, y, 0, spawnPos[0])
-                if new_car.colides_with_car(cars):
-                    new_car = None
-                else:
-                    new_car.start()
-                    cars.append(new_car)
-        # spawn += 1
+        # if spawn == 0:
+        #     if random.randint(1,4) == 1 or True:
+        #         spawnPos = roads[2].spawnPosDir1
+        #         (x,y) = calculateCornerCord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
+        #         new_car = Car(x, y, 0, spawnPos[0])
+        #         if new_car.collides_with_car(cars):
+        #             new_car = None
+        #         else:
+        #             new_car.start()
+        #             cars.append(new_car)
+        # # spawn += 1
         # test
 
 
-        # test
-        print(f"len(cars): {len(cars)}")
-        # test
         cars_movement(cars)
         # test
         print(f"len(cars): {len(cars)}")
