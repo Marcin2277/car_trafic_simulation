@@ -2,6 +2,7 @@ import pygame
 import os
 import random
 import threading
+import time
 
 
 # ------------------------------ SETTINGS ------------------------------
@@ -18,6 +19,7 @@ BLUE = (0,0,255)
 GREY = (100,100,100)
 FPS = 60
 CHANGE_LIGHTS_EVENT = pygame.USEREVENT + 1
+GATHER_STATISTICS_EVENT = pygame.USEREVENT + 2
 
 # object properties
 CAR_VEL_MAX = 5
@@ -178,6 +180,7 @@ class Car:
         self.direction = direction
         self.acceleration = 0
         self.next_turn = DIRECTIONS[random.randint(0, 3)]
+        self.stop_timer = Timer()
         self.update_position()
     
     def __str__(self) -> str:
@@ -250,6 +253,15 @@ class Car:
         if sefl.drawRect.y < 0 - CAR_HEIGHT or sefl.drawRect.y > HEIGHT:
             return True
         return False
+    
+    # check if car is not moving if spped==0 start / continue running timer
+    def measure_stop_timer(self):
+        if self.speed == 0 and not self.stop_timer.runnung:
+            self.stop_timer.start()
+        elif self.speed != 0 and self.stop_timer.runnung:
+            self.stop_timer.stop()
+        else:
+            pass
 
     def start(self):
         self.acceleration = CAR_ACC
@@ -315,6 +327,26 @@ class Intersection:
         pygame.time.set_timer(CHANGE_LIGHTS_EVENT, self.cycle[self.currentPhase]["duration"])
         self.currentPhase = (self.currentPhase + 1) % len(self.cycle)
         updateDict(self.lights, self.cycle[self.currentPhase])
+
+
+class Timer:
+    def __init__(self) -> None:
+        self.previous_start_time = None
+        self.running_time = 0
+        self.runnung = False
+    
+    def start(self):
+        self.previous_start_time = time.time()
+        self.runnung = True
+    
+    def stop(self):
+        self.running_time += time.time() - self.previous_start_time
+        self.runnung = False
+    
+    def read_timer(self):
+        if self.runnung:
+            return self.running_time + time.time() - self.previous_start_time
+        return self.running_time
         
 
 # ------------------------------ FUNCTIONS ------------------------------
@@ -364,16 +396,21 @@ def draw_window(cars: list[Car], roads: list[Road], intersections: list[Intersec
 
 def cars_movement(cars: list[Car], intersections: list[Intersection]):
     for car in cars:
+        # update speed an position
         car.update_speed()
         car.update_position()
+        # remove cars which left screen
         if car.off_screen():
             cars.remove(car)
+        # stop car if obstacle ahead (otherwise keep moving)
         if car.collides_with_car(cars):
             car.stop()
         elif car.red_light_ahead(intersections):
             car.stop()
         else:
             car.start()
+        # update stop timer
+        car.measure_stop_timer()
 
 
 def create_grid(num_of_vertical: int, num_of_horizontal: int):
@@ -394,7 +431,7 @@ def create_grid(num_of_vertical: int, num_of_horizontal: int):
             horizontal.append(road.mid)
     for x in vertical:
         for y in horizontal:
-            intersections.append(Intersection(x, y, cycle1))
+            intersections.append(Intersection(x, y, cycle2))
     return roads, intersections
 
 
@@ -425,8 +462,22 @@ def getSpawnPos(roads: list[Road]):
     return spawnPos
 
 
+def update_statistics(statistics: dict, cars: list[Car]):
+    statistics["number_of_cars"] = len(cars)
+    total_stop_time = 0
+    for car in cars:
+        total_stop_time += car.stop_timer.read_timer()
+    avg_stop_time = total_stop_time / len(cars)
+    statistics["avg_stop_time"] = avg_stop_time
+
+
 # ------------------------------ MAIN ------------------------------
 def main():
+    statistics = {
+        "number_of_cars": 0,
+        "avg_stop_time": 0
+    }
+    
     roads, intersections = create_grid(num_of_roads_x, num_of_roads_y)
     cars = []
     
@@ -437,6 +488,7 @@ def main():
     # test
 
     pygame.time.set_timer(CHANGE_LIGHTS_EVENT, 1000)
+    pygame.time.set_timer(GATHER_STATISTICS_EVENT, 500)
     clock = pygame.time.Clock()
     run = True
     spawn = 0
@@ -451,6 +503,9 @@ def main():
             if event.type == CHANGE_LIGHTS_EVENT:
                 for intersection in intersections:
                     intersection.updatePhase()
+            if event.type == GATHER_STATISTICS_EVENT:
+                update_statistics(statistics, cars)
+                print(statistics)
         
         if random.randint(1,4) == 1:
             spawnPos = getSpawnPos(roads)
@@ -473,15 +528,20 @@ def main():
         #         else:
         #             new_car.start()
         #             cars.append(new_car)
-        # # spawn += 1
+        # spawn += 1
         # test
 
 
         # update_intersections()
 
         cars_movement(cars, intersections)
+        
         # test
-        print(f"len(cars): {len(cars)}")
+        # for car in cars:
+        #     print(car.stop_timer.read_timer())
+        # test
+        # test
+        # print(f"len(cars): {len(cars)}")
         # test
 
         draw_window(cars, roads, intersections)
