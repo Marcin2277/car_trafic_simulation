@@ -9,25 +9,38 @@ import time
 num_of_roads_x = 3
 num_of_roads_y = 3
 
+# constants
 # general
+SCREEN_WIDTH, SCREEN_HEIGHT = 800, 800
 DIRECTIONS = ["left", "right", "up", "down"]
+
+# colors
 WHITE = (255,255,255)
 RED = (255,0,0)
 GREEN = (0,255,0)
 YELLOW = (255,255,0)
 BLUE = (0,0,255)
 GREY = (100,100,100)
+
+# frames per second
 FPS = 60
+
+# events
 CHANGE_LIGHTS_EVENT = pygame.USEREVENT + 1
 GATHER_STATISTICS_EVENT = pygame.USEREVENT + 2
+GATHER_STATISTICS_INTERVAL = 500
 
-# object properties
+# car properties
 CAR_VEL_MAX = 5
 CAR_ACC = 0.55 # 0.05
 CAR_WIDTH, CAR_HEIGHT = 15, 15
 CAR_COLOR = (48,213,200)
 COLIDE_DETECT_LENGTH = 3 * CAR_WIDTH
+
+# road properites
 ROAD_WIDTH = 40
+
+# intersection properties
 INTERSECTION_STOP_BUFOR = CAR_WIDTH
 INTERSECTION_LIGHT_BUFOR = 15
 INTERSECTION_WIDTH = 70
@@ -35,7 +48,7 @@ LIGHT_WIDTH = 10
 YELLOW_DURATION = 500
 GREEN_DURATION = 1000
 
-
+# defined light cycles
 cycle1 = [
     {
         "duration": GREEN_DURATION,
@@ -157,13 +170,9 @@ cycle2 = [
 
 
 
-
-
 # ------------------------------ SETUP ------------------------------
-WIDTH, HEIGHT = 800, 800
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+WIN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Car Traffic Simulation")
-
 
 
 
@@ -248,9 +257,9 @@ class Car:
         return False
     
     def off_screen(sefl):
-        if sefl.drawRect.x < 0 - CAR_WIDTH or sefl.drawRect.x > WIDTH:
+        if sefl.drawRect.x < 0 - CAR_WIDTH or sefl.drawRect.x > SCREEN_WIDTH:
             return True
-        if sefl.drawRect.y < 0 - CAR_HEIGHT or sefl.drawRect.y > HEIGHT:
+        if sefl.drawRect.y < 0 - CAR_HEIGHT or sefl.drawRect.y > SCREEN_HEIGHT:
             return True
         return False
     
@@ -276,11 +285,11 @@ class Road:
         self.mid = mid                      # x cordinate of the middle of the road
         if orientation == "vertical":
             # touple containing directions and x cordinate for cars moving that direction
-            self.spawnPosDir1 = ("up", (mid + 0.25 * ROAD_WIDTH, HEIGHT))
+            self.spawnPosDir1 = ("up", (mid + 0.25 * ROAD_WIDTH, SCREEN_HEIGHT))
             self.spawnPosDir2 = ("down", (mid - 0.25 * ROAD_WIDTH, 0))
         elif orientation == "horizontal":
             self.spawnPosDir1 = ("right", (0, mid + 0.25 * ROAD_WIDTH))
-            self.spawnPosDir2 = ("left", (WIDTH, mid - 0.25 * ROAD_WIDTH))
+            self.spawnPosDir2 = ("left", (SCREEN_WIDTH, mid - 0.25 * ROAD_WIDTH))
     
     def __str__(self) -> str:
         output = f"orientation: {self.orientation}\n"
@@ -418,9 +427,9 @@ def create_grid(num_of_vertical: int, num_of_horizontal: int):
     intersections = []
     # create roads
     for i in range(num_of_vertical):
-        roads.append(Road("vertical", WIDTH * (i+1)/(num_of_vertical+1)))
+        roads.append(Road("vertical", SCREEN_WIDTH * (i+1)/(num_of_vertical+1)))
     for i in range(num_of_horizontal):
-        roads.append(Road("horizontal", HEIGHT * (i+1)/(num_of_horizontal+1)))
+        roads.append(Road("horizontal", SCREEN_HEIGHT * (i+1)/(num_of_horizontal+1)))
     # create intersections
     vertical = []
     horizontal = []
@@ -438,9 +447,9 @@ def create_grid(num_of_vertical: int, num_of_horizontal: int):
 def draw_gird(roads: list[Road], intersections: list[Intersection]):
     for road in roads:
         if road.orientation == "vertical":
-            pygame.draw.line(WIN, GREY, (road.mid, 0), (road.mid, HEIGHT), ROAD_WIDTH)
+            pygame.draw.line(WIN, GREY, (road.mid, 0), (road.mid, SCREEN_HEIGHT), ROAD_WIDTH)
         if road.orientation == "horizontal":
-            pygame.draw.line(WIN, GREY, (0, road.mid), (WIDTH, road.mid), ROAD_WIDTH)
+            pygame.draw.line(WIN, GREY, (0, road.mid), (SCREEN_WIDTH, road.mid), ROAD_WIDTH)
     for intersection in intersections:
         # test
         for stopPoint in intersection.stopPoints:
@@ -488,7 +497,7 @@ def main():
     # test
 
     pygame.time.set_timer(CHANGE_LIGHTS_EVENT, 1000)
-    pygame.time.set_timer(GATHER_STATISTICS_EVENT, 500)
+    pygame.time.set_timer(GATHER_STATISTICS_EVENT, GATHER_STATISTICS_INTERVAL)
     clock = pygame.time.Clock()
     run = True
     spawn = 0
