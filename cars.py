@@ -55,6 +55,9 @@ LIGHT_WIDTH = 10
 YELLOW_DURATION = 500
 GREEN_DURATION = 1000
 
+# statiscitc
+NUMBER_OF_RECORDS = 100
+
 # defined light cycles
 cycle1 = [
     {
@@ -410,7 +413,29 @@ class CustomSlider:
     
     def get_value(self):
         return self.slider.getValue()
-    
+
+
+class LivePlot:
+    def __init__(self, y_min, y_max, title):
+        self.data = NUMBER_OF_RECORDS * [0]
+        # Ustawienia wykresu
+        self.fig, self.ax = plt.subplots()
+        self.line, = self.ax.plot(self.data)
+        self.ax.set_ylim(y_min, y_max)  # Zakres wartości na osi Y
+        self.fig.canvas.manager.set_window_title(title)
+
+    def update_plot(self, new_data):
+        self.data.append(new_data)
+        self.data = self.data[-NUMBER_OF_RECORDS:]
+        # Aktualizacja wykresu z obecnymi danymi
+        self.line.set_ydata(self.data)
+        self.ax.draw_artist(self.ax.patch)
+        self.ax.draw_artist(self.line)
+        self.fig.canvas.blit(self.ax.bbox)
+        self.fig.canvas.flush_events()
+
+    def show(self):
+        plt.show(block=False)
 
 
 
@@ -565,8 +590,9 @@ def gather_statistics(statistics: dict, cars: list[Car]):
     statistics["avg_stop_time"] = avg_stop_time
 
 
-def draw_statistics(stathistics):
-    pass
+def draw_statistics(stathistics, plots: dict):
+    for key, plot in plots.items():
+        plot.update_plot(stathistics[key])
 
 
 def update_adjustable(adjustable: dict, sliders: dict):
@@ -609,7 +635,12 @@ def main():
         "number_of_cars": 0,
         "avg_stop_time": 0
     }
-    statistics_history = [statistics]
+    plots = {
+        "number_of_cars": LivePlot(0, 200, "Number of Cars"),
+        "avg_stop_time": LivePlot(0, 30, "Avrage wait time")
+    }
+    plots["number_of_cars"].show()
+    plots["avg_stop_time"].show()
     
     roads, intersections = create_grid(num_of_roads_x, num_of_roads_y)
     cars = []
@@ -644,8 +675,8 @@ def main():
                     intersection.update_phase()
             elif event.type == GATHER_STATISTICS_EVENT:
                 gather_statistics(statistics, cars)
-                statistics_history.append(statistics)
-                print(statistics)
+                # statistics_history.append(statistics)
+                draw_statistics(statistics, plots=plots)
             elif event.type == SLIDER_CHANGE_EVENT:
                 update_adjustable(adjustable, sliders)
         
