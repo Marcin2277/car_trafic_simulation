@@ -1,4 +1,9 @@
 import pygame
+import pygame_widgets
+from pygame_widgets.slider import Slider
+from pygame_widgets.textbox import TextBox
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import os
 import random
 import threading
@@ -12,6 +17,7 @@ num_of_roads_y = 3
 # constants
 # general
 SCREEN_WIDTH, SCREEN_HEIGHT = 800, 800
+CONTROLS_HEIGHT = 400
 DIRECTIONS = ["left", "right", "up", "down"]
 
 # colors
@@ -28,6 +34,7 @@ FPS = 60
 # events
 CHANGE_LIGHTS_EVENT = pygame.USEREVENT + 1
 GATHER_STATISTICS_EVENT = pygame.USEREVENT + 2
+SLIDER_CHANGE_EVENT = pygame.USEREVENT + 3
 GATHER_STATISTICS_INTERVAL = 500
 
 # car properties
@@ -51,6 +58,7 @@ GREEN_DURATION = 1000
 # defined light cycles
 cycle1 = [
     {
+        "type": GREEN,
         "duration": GREEN_DURATION,
         "left": {"color": GREEN},
         "right": {"color": RED},
@@ -58,6 +66,7 @@ cycle1 = [
         "down": {"color": RED}
     },
     {
+        "type": GREEN,
         "duration": GREEN_DURATION,
         "left": {"color": RED},
         "right": {"color": RED},
@@ -65,6 +74,7 @@ cycle1 = [
         "down": {"color": RED}
     },
     {
+        "type": GREEN,
         "duration": GREEN_DURATION,
         "left": {"color": RED},
         "right": {"color": GREEN},
@@ -72,6 +82,7 @@ cycle1 = [
         "down": {"color": RED}
     },
     {
+        "type": GREEN,
         "duration": GREEN_DURATION,
         "left": {"color": RED},
         "right": {"color": RED},
@@ -83,6 +94,7 @@ cycle1 = [
 
 cycle2 = [
     {
+        "type": YELLOW,
         "duration": YELLOW_DURATION,
         "left": {"color": YELLOW},
         "right": {"color": RED},
@@ -90,6 +102,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": GREEN,
         "duration": GREEN_DURATION,
         "left": {"color": GREEN},
         "right": {"color": RED},
@@ -97,6 +110,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": YELLOW,
         "duration": YELLOW_DURATION,
         "left": {"color": YELLOW},
         "right": {"color": RED},
@@ -104,6 +118,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": YELLOW,
         "duration": YELLOW_DURATION,
         "left": {"color": RED},
         "right": {"color": RED},
@@ -111,6 +126,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": GREEN,
         "duration": GREEN_DURATION,
         "left": {"color": RED},
         "right": {"color": RED},
@@ -118,6 +134,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": YELLOW,
         "duration": YELLOW_DURATION,
         "left": {"color": RED},
         "right": {"color": RED},
@@ -125,6 +142,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": YELLOW,
         "duration": YELLOW_DURATION,
         "left": {"color": RED},
         "right": {"color": YELLOW},
@@ -132,6 +150,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": GREEN,
         "duration": GREEN_DURATION,
         "left": {"color": RED},
         "right": {"color": GREEN},
@@ -139,6 +158,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": YELLOW,
         "duration": YELLOW_DURATION,
         "left": {"color": RED},
         "right": {"color": YELLOW},
@@ -146,6 +166,7 @@ cycle2 = [
         "down": {"color": RED}
     },
     {
+        "type": YELLOW,
         "duration": YELLOW_DURATION,
         "left": {"color": RED},
         "right": {"color": RED},
@@ -153,6 +174,7 @@ cycle2 = [
         "down": {"color": YELLOW}
     },
     {
+        "type": GREEN,
         "duration": GREEN_DURATION,
         "left": {"color": RED},
         "right": {"color": RED},
@@ -160,6 +182,7 @@ cycle2 = [
         "down": {"color": GREEN}
     },
     {
+        "type": YELLOW,
         "duration": YELLOW_DURATION,
         "left": {"color": RED},
         "right": {"color": RED},
@@ -171,8 +194,19 @@ cycle2 = [
 
 
 # ------------------------------ SETUP ------------------------------
-WIN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+WIN = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT + CONTROLS_HEIGHT))
 pygame.display.set_caption("Car Traffic Simulation")
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -186,8 +220,8 @@ class Car:
         self.colide_rect_down = pygame.Rect(posX, posY, CAR_WIDTH, COLIDE_DETECT_LENGTH)
         self.active_colide_rect = None
         self.speed = speed
-        self.direction = direction
         self.acceleration = 0
+        self.direction = direction
         self.next_turn = DIRECTIONS[random.randint(0, 3)]
         self.stop_timer = Timer()
         self.update_position()
@@ -250,10 +284,8 @@ class Car:
     def red_light_ahead(self, intersections: list):
         for intersection in intersections:
             for stop_point in intersection.stop_points:
-                if self.active_colide_rect.collidepoint(stop_point) and intersection.lights[self.direction]["color"] == RED:
+                if self.active_colide_rect.collidepoint(stop_point) and intersection.lights[self.direction]["color"] != GREEN:
                     return True
-            # if self.active_colide_rect.colliderect(intersection.collisionRect) and intersection.lights[self.direction]["color"] == RED:
-            #     return True
         return False
     
     def off_screen(sefl):
@@ -311,7 +343,7 @@ class Intersection:
         
         # lights direction defines fight for cars heading that directioni.e. lights["left"] mean light for cars moving from right to left
         self.timer = threading.Timer
-        self.cycle = cycle
+        self.cycle = setup_cycle(cycle, GREEN_DURATION, YELLOW_DURATION)
         self.current_phase = 0
         self.lights = {
             "down": {
@@ -336,6 +368,9 @@ class Intersection:
         pygame.time.set_timer(CHANGE_LIGHTS_EVENT, self.cycle[self.current_phase]["duration"])
         self.current_phase = (self.current_phase + 1) % len(self.cycle)
         updateDict(self.lights, self.cycle[self.current_phase])
+        
+    def update_intersection(self, green_light_duration, yellow_light_duration):
+        self.cycle = setup_cycle(self.cycle, green_light_duration, yellow_light_duration)
 
 
 class Timer:
@@ -356,21 +391,62 @@ class Timer:
         if self.runnung:
             return self.running_time + time.time() - self.previous_start_time
         return self.running_time
-        
+
+
+class CustomSlider:
+    def __init__(self, win: pygame.display, x: int, y: int, name: str, min, max, step, initial) -> None:
+        self.slider = Slider(win, x+10, y, 250, 20, min=min, max=max, step=step, initial=initial)
+        self.label = TextBox(win, x, y-25, 70, 20, borderColour=WHITE, colour=WHITE, fontSize=18)
+        self.display = TextBox(win, x+280, y+5, 100, 20, borderColour=WHITE, colour=WHITE, fontSize=18)
+        self.last_value = self.slider.getValue()
+        self.name = name
+    
+    def update_slider(self):
+        if self.slider.getValue() != self.last_value:
+            pygame.event.post(pygame.event.Event(SLIDER_CHANGE_EVENT))
+            self.last_value = self.slider.getValue()
+        self.label.setText(self.name)
+        self.display.setText(f"Value: {self.slider.getValue()}")
+    
+    def get_value(self):
+        return self.slider.getValue()
+    
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ------------------------------ FUNCTIONS ------------------------------
-def updateDict(original, delta):
-    original_updated = original
+def updateDict(original: dict, delta: dict):
+    updated = original
     # update each parameter separately instead of updated = original.upadte(delta) so it doesn't delete parameters that are not being updated
     for parameter in delta:
-        if parameter in original_updated:
+        if parameter in updated:
             if type(delta[parameter]) is dict:
-                original_updated.update({parameter: updateDict(original[parameter], delta[parameter])})
+                updated.update({parameter: updateDict(original[parameter], delta[parameter])})
             else:
-                original_updated.update({parameter: delta[parameter]})
+                updated.update({parameter: delta[parameter]})
         else:
-            original_updated.update({parameter: delta[parameter]})
-    return original_updated
+            updated.update({parameter: delta[parameter]})
+    return updated
+
+
+def setup_cycle(cycle: list[dict], green_light_duration: int, yellow_light_duration: int):
+    cycle_copy = cycle.copy()
+    for phase in cycle_copy:
+        if phase["type"] == YELLOW:
+            phase["duration"] = yellow_light_duration
+        if phase["type"] == GREEN:
+            phase["duration"] = green_light_duration
+    return cycle_copy
 
 
 # calculates where to put obcjet so the middle ponit of the object was in x_cord_mid and y_cord_mid
@@ -380,7 +456,7 @@ def calculate_corner_cord(x_cord_mid: int, y_cord_mid: int, objWidth: int, objHe
     return (x_cord_corner, y_cord_corner)
 
 
-def draw_window(cars: list[Car], roads: list[Road], intersections: list[Intersection]):
+def draw_window(events, cars: list[Car], roads: list[Road], intersections: list[Intersection]):
     WIN.fill(WHITE)
     # draw grid
     draw_gird(roads, intersections)
@@ -400,12 +476,13 @@ def draw_window(cars: list[Car], roads: list[Road], intersections: list[Intersec
         # test
         pygame.draw.rect(WIN, CAR_COLOR, car.draw_rect)
 
+    pygame_widgets.update(events)
     pygame.display.update()
     
 
-def cars_movement(cars: list[Car], intersections: list[Intersection]):
+def update_cars(cars: list[Car], intersections: list[Intersection]):
     for car in cars:
-        # update speed an position
+        # update speed and position
         car.update_speed()
         car.update_position()
         # remove cars which left screen
@@ -420,6 +497,11 @@ def cars_movement(cars: list[Car], intersections: list[Intersection]):
             car.start()
         # update stop timer
         car.measure_stop_timer()
+
+
+def update_intersections(intersections: list[Intersection], green_light_duration, yellow_light_duration):
+    for intersection in intersections:
+        intersection.update_intersection(green_light_duration, yellow_light_duration)
 
 
 def create_grid(num_of_vertical: int, num_of_horizontal: int):
@@ -452,8 +534,8 @@ def draw_gird(roads: list[Road], intersections: list[Intersection]):
             pygame.draw.line(WIN, GREY, (0, road.mid), (SCREEN_WIDTH, road.mid), ROAD_WIDTH)
     for intersection in intersections:
         # test
-        for stop_point in intersection.stop_points:
-            pygame.draw.circle(WIN, BLUE, stop_point, 3)
+        # for stop_point in intersection.stop_points:
+        #     pygame.draw.circle(WIN, BLUE, stop_point, 3)
         # test
         pygame.draw.rect(WIN, intersection.lights["left"]["color"], intersection.lights["left"]["rect"])
         pygame.draw.rect(WIN, intersection.lights["right"]["color"], intersection.lights["right"]["rect"])
@@ -465,27 +547,69 @@ def draw_gird(roads: list[Road], intersections: list[Intersection]):
 def get_spawn_pos(roads: list[Road]):
     road = roads[random.randint(0, len(roads)-1)]
     if random.randint(0,1) == 0:
-        spawnPos = road.spawn_pos_dir1
+        spawn_pos = road.spawn_pos_dir1
     else:
-        spawnPos = road.spawn_pos_dir2
-    return spawnPos
+        spawn_pos = road.spawn_pos_dir2
+    return spawn_pos
 
 
-def update_statistics(statistics: dict, cars: list[Car]):
+def gather_statistics(statistics: dict, cars: list[Car]):
     statistics["number_of_cars"] = len(cars)
     total_stop_time = 0
     for car in cars:
         total_stop_time += car.stop_timer.read_timer()
-    avg_stop_time = total_stop_time / len(cars)
+    try:
+        avg_stop_time = total_stop_time / len(cars)
+    except ZeroDivisionError:
+        avg_stop_time = 0
     statistics["avg_stop_time"] = avg_stop_time
+
+
+def draw_statistics(stathistics):
+    pass
+
+
+def update_adjustable(adjustable: dict, sliders: dict):
+    # car density
+    adjustable["car_density"] = sliders["car_density"].get_value()
+    # light durations
+    adjustable["green_light_duration"] = sliders["green_light_duration"].get_value()
+    adjustable["yellow_light_duration"] = sliders["yellow_light_duration"].get_value()
+
+
+
+
+
+
+
+
+
+
+
 
 
 # ------------------------------ MAIN ------------------------------
 def main():
+    pygame.init()
+    
+    # adjustable parameters
+    adjustable = {
+        "car_density": 10,              # car density defined as number of cars spawning per second
+        "green_light_duration": 1000,   # ms
+        "yellow_light_duration": 500    # ms
+    }
+    sliders = {
+        "car_density": CustomSlider(WIN, 20, 900, "Car Density", 0, 60, 1, initial=adjustable["car_density"]),
+        "green_light_duration": CustomSlider(WIN, 20, 1000, "Green Light Duration [ms]", 200, 5000, 1, initial=adjustable["green_light_duration"]),
+        "yellow_light_duration": CustomSlider(WIN, 20, 1100, "Yellow Light Duration [ms]", 200, 5000, 1, initial=adjustable["yellow_light_duration"])
+    }
+    
+    # store all statistics here
     statistics = {
         "number_of_cars": 0,
         "avg_stop_time": 0
     }
+    statistics_history = [statistics]
     
     roads, intersections = create_grid(num_of_roads_x, num_of_roads_y)
     cars = []
@@ -499,39 +623,55 @@ def main():
     pygame.time.set_timer(CHANGE_LIGHTS_EVENT, 1000)
     pygame.time.set_timer(GATHER_STATISTICS_EVENT, GATHER_STATISTICS_INTERVAL)
     clock = pygame.time.Clock()
+    
+    spawn_counter_curr = 0
+    spawn_counter_max = round(1 / (adjustable["car_density"] / FPS))
     run = True
-    spawn = 0
+    # test
+    # spawn = 0
+    # test
     while run:
         clock.tick(FPS)
-        for event in pygame.event.get():
+        events = pygame.event.get()
+        for event in events:
             if event.type == pygame.QUIT:
                 run = False
             # if event.type == pygame.KEYDOWN:
             #     print("Changed interval")
             #     pygame.time.set_timer(CHANGE_LIGHTS_EVENT, 500)
-            if event.type == CHANGE_LIGHTS_EVENT:
+            elif event.type == CHANGE_LIGHTS_EVENT:
                 for intersection in intersections:
                     intersection.update_phase()
-            if event.type == GATHER_STATISTICS_EVENT:
-                update_statistics(statistics, cars)
+            elif event.type == GATHER_STATISTICS_EVENT:
+                gather_statistics(statistics, cars)
+                statistics_history.append(statistics)
                 print(statistics)
+            elif event.type == SLIDER_CHANGE_EVENT:
+                update_adjustable(adjustable, sliders)
         
-        if random.randint(1,4) == 1:
-            spawnPos = get_spawn_pos(roads)
-            (x,y) = calculate_corner_cord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
-            new_car = Car(x, y, 0, spawnPos[0])
+        # spawn cars
+        try:
+            spawn_counter_max = round(1 / (adjustable["car_density"] / FPS))
+        except ZeroDivisionError:
+            spawn_counter_max = 100000000
+        if spawn_counter_curr >= spawn_counter_max:
+            spawn_counter_curr = 0
+            spawn_pos = get_spawn_pos(roads)
+            (x,y) = calculate_corner_cord(spawn_pos[1][0], spawn_pos[1][1], CAR_WIDTH, CAR_HEIGHT)
+            new_car = Car(x, y, 0, spawn_pos[0])
             if new_car.collides_with_car(cars):
                 new_car = None
             else:
                 new_car.start()
                 cars.append(new_car)
+        spawn_counter_curr += 1
 
         # test
         # if spawn == 0:
         #     if random.randint(1,4) == 1 or True:
-        #         spawnPos = roads[2].spawn_pos_dir1
-        #         (x,y) = calculate_corner_cord(spawnPos[1][0], spawnPos[1][1], CAR_WIDTH, CAR_HEIGHT)
-        #         new_car = Car(x, y, 0, spawnPos[0])
+        #         spawn_pos = roads[2].spawn_pos_dir1
+        #         (x,y) = calculate_corner_cord(spawn_pos[1][0], spawn_pos[1][1], CAR_WIDTH, CAR_HEIGHT)
+        #         new_car = Car(x, y, 0, spawn_pos[0])
         #         if new_car.collides_with_car(cars):
         #             new_car = None
         #         else:
@@ -539,11 +679,13 @@ def main():
         #             cars.append(new_car)
         # spawn += 1
         # test
-
-
-        # update_intersections()
-
-        cars_movement(cars, intersections)
+        
+        # controls
+        for _, slider in sliders.items():
+            slider.update_slider()
+        
+        update_intersections(intersections, adjustable["green_light_duration"], adjustable["yellow_light_duration"])
+        update_cars(cars, intersections)
         
         # test
         # for car in cars:
@@ -553,7 +695,7 @@ def main():
         # print(f"len(cars): {len(cars)}")
         # test
 
-        draw_window(cars, roads, intersections)
+        draw_window(events, cars, roads, intersections)
     
     pygame.quit()
 
@@ -570,6 +712,8 @@ if __name__=="__main__":
 # - ustalony kierunek wszystkich aut vs losowe skręty
 # - badanie wpływu przyśpieszenia i vmax aut
 # - na przyszłość ustalanie miejsc docelowych dla każdego auta
+# - wpływ czasu reakcji kierowcy (długość strefy kolizji)
+# - wpływ niezsynchronizowania sygnalizacji
 
 # Notatki implementacyjne:
 # - dóży wpływ ma punkt rozpoczęcia hamowania przed skrzyżowaniem (zbyt blisko skrzyżowania oznacza zatrzymanie się na skrzyżowaniu)
